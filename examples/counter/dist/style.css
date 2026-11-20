@@ -1,4 +1,0 @@
-/* Basis gaya dari funny. Gaya per elemen ditulis langsung di JSX lewat style={{...}}. */
-*, *::before, *::after { box-sizing: border-box; }
-html, body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
-.fb-window { min-height: 100vh; }
