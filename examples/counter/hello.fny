@@ -1,3 +1,0 @@
-export default fun Here(){
-	return(<body>Hello</body>);
-}
