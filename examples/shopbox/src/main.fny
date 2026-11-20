@@ -1,0 +1,32 @@
+play UI;
+
+fun ShopPage() {
+    state revision = 0;
+
+    return (
+        <Window title="ShopBox">
+            <header className="topbar">
+                <h1>ShopBox</h1>
+            </header>
+            <main className="layout">
+                <section>
+                    <h2>Produk Unggulan</h2>
+                    <div className="product-grid">
+                        {products.map(product => (
+                            <ProductCard product={product} onAdd={p => { AddToCart(p); revision++; }} />
+                        ))}
+                    </div>
+                </section>
+                <aside>
+                    <h2>Keranjang</h2>
+                    <p>{cartCount} produk</p>
+                    <h3>Total: Rp {CalculateTotal()}</h3>
+                </aside>
+            </main>
+        </Window>
+    );
+}
+
+export default fun Here() {
+    return <ShopPage />;
+}

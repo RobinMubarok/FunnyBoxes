@@ -1,0 +1,21 @@
+play UI;
+
+fun Counter() {
+    state count = 0;
+
+    return (
+        <Container className="card">
+            <h1>Halo, FunnyBoxes!</h1>
+            <p>Hitungan: {count}</p>
+            <button onClick={() => count++}>Tambah</button>
+        </Container>
+    );
+}
+
+export default fun Here() {
+    return (
+        <Window title="Halo">
+            <Counter />
+        </Window>
+    );
+}

@@ -1,0 +1,119 @@
+play Core;
+play UI;
+play Graphics;
+play Math;
+play Storage;
+play Router;
+
+struct Product {
+    box14 id;
+    char *name;
+    box24 price;
+    box14 stock;
+};
+
+Product products[3] = {
+    {1, "Headphones", 799000, 12},
+    {2, "Keyboard", 1250000, 8},
+    {3, "Mouse", 350000, 20}
+};
+
+Product *cart[50];
+box14 cartCount = 0;
+
+// --- Typed functions ---
+
+box24 CalculateTotal() {
+    box24 total = 0;
+
+    for (box14 i = 0; i < cartCount; i++) {
+        total += cart[i]->price;
+    }
+
+    return total;
+}
+
+box00 AddToCart(Product *product) {
+    if (cartCount >= 50)
+        return;
+
+    cart[cartCount++] = product;
+}
+
+// --- Dynamic functions ---
+
+fun ProductCard(product) {
+    return (
+        <article className="product-card">
+            <div className="product-image">
+                <ProductPreview product={product} />
+            </div>
+
+            <h3>{product.name}</h3>
+            <p>Rp {product.price}</p>
+
+            <button onClick={() => AddToCart(&product)}>
+                Add to Cart
+            </button>
+        </article>
+    );
+}
+
+fun ProductPreview(product) {
+    return (
+        <GraphicsCanvas width={300} height={200}>
+            {() => {
+                gfxClear(0x20242C);
+                                gfxPresent();
+            }}
+        </GraphicsCanvas>
+    );
+}
+
+fun ShoppingCart() {
+    return (
+        <aside>
+            <h2>Shopping Cart</h2>
+
+            <p>{cartCount} products</p>
+            <h3>Total: Rp {CalculateTotal()}</h3>
+
+            <button onClick={() => Router.Navigate("/checkout")}>
+                Checkout
+            </button>
+        </aside>
+    );
+}
+
+fun ShopPage() {
+    return (
+        <Window title="ShopBox" style={{ background: "#10131C", color: "#FFFFFF", fontFamily: "Inter" }}>
+
+            <header>
+                <h1>ShopBox</h1>
+                <nav>
+                    <a href="/">Home</a>
+                    <a href="/products">Products</a>
+                </nav>
+            </header>
+
+            <main>
+                <section>
+                    <h2>Featured Products</h2>
+
+                    <div className="product-grid">
+                        {products.map(product => (
+                            <ProductCard product={product} />
+                        ))}
+                    </div>
+                </section>
+
+                <ShoppingCart />
+            </main>
+        </Window>
+    );
+}
+
+export default fun Here() {
+    return <ShopPage />;
+}

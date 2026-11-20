@@ -1,0 +1,16 @@
+Product *cart[50];
+box14 cartCount = 0;
+
+box00 AddToCart(Product *product) {
+    if (cartCount >= 50)
+        return;
+    cart[cartCount++] = product;
+}
+
+box24 CalculateTotal() {
+    box24 total = 0;
+    for (box14 i = 0; i < cartCount; i++) {
+        total += cart[i]->price;
+    }
+    return total;
+}

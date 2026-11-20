@@ -1,0 +1,37 @@
+play Graphics;
+
+struct Product {
+    box14 id;
+    char *name;
+    box24 price;
+    box14 stock;
+};
+
+Product products[3] = {
+    {1, "Headphones", 799000, 12},
+    {2, "Keyboard", 1250000, 8},
+    {3, "Mouse", 350000, 20}
+};
+
+fun ProductPreview(product) {
+    return (
+        <GraphicsCanvas width={300} height={160}>
+            {() => {
+                gfxClear(0x20242C);
+                gfxRect(20, 20, 260, 120, 0x2F3A52);
+                gfxCircle(40 + product.id * 80, 80, 28, 0x7CC4FF);
+            }}
+        </GraphicsCanvas>
+    );
+}
+
+fun ProductCard(product, onAdd) {
+    return (
+        <article className="product-card">
+            <ProductPreview product={product} />
+            <h3>{product.name}</h3>
+            <p>Rp {product.price}</p>
+            <button onClick={() => onAdd(product)}>Tambah ke keranjang</button>
+        </article>
+    );
+}

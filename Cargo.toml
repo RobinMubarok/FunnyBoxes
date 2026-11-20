@@ -1,0 +1,16 @@
+[package]
+name = "funny"
+version = "0.2.0-dev"
+edition = "2021"
+description = "Compiler FunnyBoxes (.fny): HTML, CSS, JavaScript, dan WebAssembly"
+license = "MIT"
+
+[lib]
+name = "funny"
+path = "src/lib.rs"
+
+[[bin]]
+name = "funny"
+path = "src/main.rs"
+
+[dependencies]

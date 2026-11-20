@@ -1,0 +1,16 @@
+{
+  "name": "funnyboxes",
+  "version": "0.2.0-dev",
+  "description": "Compiler FunnyBoxes (.fny): transpilasi ke HTML, CSS, JavaScript, dan WebAssembly",
+  "license": "MIT",
+  "bin": {
+    "funny": "bin/funny.js"
+  },
+  "files": [
+    "bin",
+    "native"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}
