@@ -475,3 +475,14 @@ fn approved_holyc_and_jsx_keywords_parse() {
 fn labeled_block_and_goto_parse() {
     ok("fun F() { done: { goto done; } return 1; }");
 }
+
+#[test]
+fn play_import_forms_parse() {
+    ok(r#"
+        play Chart from "https://cdn.example/chart.js";
+        play { registerables, Chart as C } from "https://cdn.example/chart.js";
+        play * as Lib from "https://cdn.example/lib.js";
+        play { sqrt as akar } from Math;
+        play UI;
+    "#);
+}

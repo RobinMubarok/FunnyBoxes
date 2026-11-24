@@ -36,10 +36,27 @@ async function __start(needCore, needApp, body) {
   body();
 }
 
-/* Membangun ulang seluruh UI dari fungsi entry. Dipanggil setelah state atau event berubah. */
+/* Membangun ulang UI. Input yang sedang difokus dikembalikan fokusnya (berdasarkan urutan input),
+ * beserta posisi kursor, supaya pengetikan tidak terputus. */
 function __rerender() {
   if (__renderFn === null) return;
+  const active = document.activeElement;
+  let focusIdx = -1;
+  let caret = null;
+  if (active && (active.nodeName === "INPUT" || active.nodeName === "TEXTAREA")) {
+    focusIdx = Array.prototype.indexOf.call(__root.querySelectorAll("input,textarea"), active);
+    caret = [active.selectionStart, active.selectionEnd];
+  }
   __root.replaceChildren(__toNode(__renderFn()));
+  if (focusIdx >= 0) {
+    const el = __root.querySelectorAll("input,textarea")[focusIdx];
+    if (el) {
+      el.focus();
+      if (caret && caret[0] !== null && caret[0] !== undefined) {
+        try { el.setSelectionRange(caret[0], caret[1]); } catch (_) {}
+      }
+    }
+  }
 }
 
 function __mount(render) {
@@ -117,13 +134,16 @@ function __h(tag, props, kids) {
         __style(el, v);
       } else if (/^on[A-Z]/.test(k) && typeof v === "function") {
         el.addEventListener(k.slice(2).toLowerCase(), (e) => {
-          v(e);
-          __rerender();
+          const r = v(e);
+          if (r && typeof r.then === "function") r.then(() => __rerender());
+          else __rerender();
         });
       } else if (k === "value") {
         el.value = String(v);
       } else if (k === "checked") {
         el.checked = Boolean(v);
+      } else if (k === "href" && __isFile && typeof v === "string" && v.startsWith("/")) {
+        el.setAttribute("href", "#" + v);
       } else {
         el.setAttribute(k, v === true ? "" : String(v));
       }
@@ -132,6 +152,26 @@ function __h(tag, props, kids) {
   __appendTo(el, kids);
   for (const r of refs) r(el);
   return el;
+}
+
+/* Head: <link>, <meta>, <script>, <style> dipindah ke <head>. Duplikat diabaikan. */
+const __headKeys = new Set();
+function __eachNode(v, fn) {
+  if (v === null || v === undefined) return;
+  if (Array.isArray(v)) {
+    for (const x of v) __eachNode(x, fn);
+    return;
+  }
+  if (v instanceof Node) fn(v);
+}
+function __headAdd(node) {
+  const tag = node.nodeName.toLowerCase();
+  if (tag !== "link" && tag !== "meta" && tag !== "script" && tag !== "style") return;
+  const key = [tag, node.getAttribute("rel"), node.getAttribute("href"), node.getAttribute("name"),
+    node.getAttribute("property"), node.getAttribute("content"), node.textContent].join("|");
+  if (__headKeys.has(key)) return;
+  __headKeys.add(key);
+  document.head.appendChild(node);
 }
 
 /* Komponen UI bawaan: kelas dasar FunnyBoxes ditambahkan ke className. */
@@ -158,6 +198,10 @@ const __C = {
   Scroll: __comp("div", "fb-scroll"),
   Dialog: __comp("dialog", "fb-dialog"),
   Menu: __comp("nav", "fb-menu"),
+  Head: (props, kids) => {
+    __eachNode(kids, __headAdd);
+    return null;
+  },
   GraphicsCanvas: (props, kids) => {
     const c = __comp("canvas", "fb-canvas")(props, []);
     const draw = (kids || []).find((k) => typeof k === "function");
@@ -211,6 +255,12 @@ function __gfxEnd() {
   __gfxVerts = [];
 }
 function __gfxPresent() {}
+
+/* Navigasi browser (popstate, hashchange) ditangani dengan merender ulang UI.
+ * Di file:// href "/..." ditulis ulang menjadi hash, karena tidak ada server. */
+const __isFile = location.protocol === "file:";
+window.addEventListener("popstate", () => __rerender());
+window.addEventListener("hashchange", () => __rerender());
 
 /* Input browser. */
 function __onKeyDown(key, fn) {

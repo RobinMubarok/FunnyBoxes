@@ -181,13 +181,23 @@ pub struct AliasDecl {
     pub span: Span,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct PlayDecl {
-    /// Nama modul, termasuk bagian setelah titik (`Graphics.WASM`).
+    /// Modul bawaan FunnyBoxes, termasuk bagian setelah titik (`Graphics.WASM`).
+    /// Kosong untuk impor dari URL.
     pub module: String,
+    /// Bentuk lama: `play Math as M;`.
     pub alias: Option<String>,
-    /// Daftar nama untuk impor selektif: `play Math : sqrt, pow;`.
+    /// Bentuk lama: `play Math : sqrt, pow;`.
     pub names: Option<Vec<String>>,
+    /// Impor dari URL: `play ... from "url";` (sama seperti `import ... from "url"` di JS).
+    pub url: Option<String>,
+    /// `play Nama from "url";` (import default).
+    pub default_name: Option<String>,
+    /// `play * as Nama from "url";` (import namespace).
+    pub namespace: Option<String>,
+    /// `play { a, b as c } from ...;` (impor bernama). Pasangan (nama asli, nama lokal).
+    pub named: Vec<(String, String)>,
 }
 
 // ---------- Ekspresi ----------

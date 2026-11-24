@@ -113,3 +113,24 @@ fn asm_bytes_are_emitted_into_wasm_body() {
     let bytes = module("box14 answer() { asm { 0x41, 0x2a }; }");
     assert!(bytes.windows(2).any(|w| w == [0x41, 0x2a]), "byte asm harus ada: {:?}", bytes);
 }
+
+#[test]
+fn unused_scalar_functions_are_not_generated() {
+    let p = funny::parse(r#"
+        box14 pakai(box14 a) { return a + 1; }
+        box14 tidakPakai(box14 a) { return a * 2; }
+        export default fun Here() { return <p>{pakai(1)}</p>; }
+    "#).unwrap();
+    let m = funny::wasm_emit::emit_scalar_used(&p);
+    assert_eq!(m.names, vec!["pakai".to_string()]);
+}
+
+#[test]
+fn no_wasm_when_nothing_is_used() {
+    let p = funny::parse(r#"
+        box14 tidakPakai(box14 a) { return a * 2; }
+        export default fun Here() { return <p>x</p>; }
+    "#).unwrap();
+    let m = funny::wasm_emit::emit_scalar_used(&p);
+    assert!(m.names.is_empty());
+}

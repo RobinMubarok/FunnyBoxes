@@ -1,0 +1,41 @@
+// Contoh memori manual: Alloc, MemoryWriteI32 (PokeBox14), MemoryReadI32 (PeekBox14), Free.
+// Alamat adalah angka. Offset ditambahkan langsung, dan offset(Tipe, field) untuk struct.
+// Butuh core.wasm: build dengan --core FILE_CORE_WASM.
+play UI;
+play Memory;
+
+struct Titik {
+    box14 x;
+    box14 y;
+    box24 bobot;
+};
+
+fun Contoh() {
+    box00 *buf = Alloc(16);
+    PokeBox14(buf, 42);
+    PokeBox14(buf + 4, 7);
+    PokeBox24(buf + 8, 1.5);
+
+    box14 a = PeekBox14(buf);
+    box14 b = PeekBox14(buf + 4);
+    box24 c = PeekBox24(buf + 8);
+
+    MemorySet(buf + 12, 0, 4);
+    Free(buf);
+
+    return (
+        <Container className="card">
+            <p>{a} + {b} = {a + b}</p>
+            <p>bobot = {c}</p>
+            <p>offset bobot dalam Titik = {offset(Titik, bobot)} byte</p>
+        </Container>
+    );
+}
+
+export default fun Here() {
+    return (
+        <Window title="Malloc">
+            <Contoh />
+        </Window>
+    );
+}

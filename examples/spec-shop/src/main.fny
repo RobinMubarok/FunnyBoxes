@@ -2,8 +2,6 @@ play Core;
 play UI;
 play Graphics;
 play Math;
-play Storage;
-play Router;
 
 struct Product {
     box14 id;
@@ -78,7 +76,7 @@ fun ShoppingCart() {
             <p>{cartCount} products</p>
             <h3>Total: Rp {CalculateTotal()}</h3>
 
-            <button onClick={() => Router.Navigate("/checkout")}>
+            <button onClick={() => history.pushState({}, "", "/checkout")}>
                 Checkout
             </button>
         </aside>

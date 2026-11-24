@@ -437,35 +437,86 @@ impl<'a> Parser<'a> {
         Ok(stmts)
     }
 
+    /// `play` mengikuti sintaks `import` JavaScript:
+    ///   play Nama from "url";            (default)
+    ///   play { a, b as c } from "url";   (bernama)
+    ///   play * as Nama from "url";       (namespace)
+    ///   play Modul;  play Modul as M;  play Modul : a, b;   (bentuk bawaan, tetap didukung)
+    /// Sumber setelah `from` bisa URL (string) atau modul bawaan (identifier).
     fn parse_play(&mut self) -> PResult<Stmt> {
         let kw = self.bump()?;
-        let (mut module, _) = self.ident()?;
-        while self.eat(".")? {
-            let (part, _) = self.ident()?;
-            module.push('.');
-            module.push_str(&part);
-        }
+        let mut d = PlayDecl::default();
 
-        let mut alias = None;
-        let mut names = None;
-        if self.eat("as")? {
-            alias = Some(self.ident()?.0);
-        } else if self.eat(":")? {
-            let mut list = Vec::new();
+        if self.eat("{")? {
             loop {
-                list.push(self.ident()?.0);
+                if self.is_at(0, "}")? {
+                    break;
+                }
+                let (imp, _) = self.ident()?;
+                let local = if self.eat("as")? { self.ident()?.0 } else { imp.clone() };
+                d.named.push((imp, local));
                 if !self.eat(",")? {
                     break;
                 }
             }
-            names = Some(list);
+            self.expect("}")?;
+            self.expect("from")?;
+            self.play_source(&mut d)?;
+        } else if self.eat("*")? {
+            self.expect("as")?;
+            d.namespace = Some(self.ident()?.0);
+            self.expect("from")?;
+            self.play_source(&mut d)?;
+        } else {
+            let (mut module, _) = self.ident()?;
+            if self.eat("from")? {
+                d.default_name = Some(module);
+                self.play_source(&mut d)?;
+            } else {
+                while self.eat(".")? {
+                    let (part, _) = self.ident()?;
+                    module.push('.');
+                    module.push_str(&part);
+                }
+                if self.eat("as")? {
+                    d.alias = Some(self.ident()?.0);
+                } else if self.eat(":")? {
+                    let mut list = Vec::new();
+                    loop {
+                        list.push(self.ident()?.0);
+                        if !self.eat(",")? {
+                            break;
+                        }
+                    }
+                    d.names = Some(list);
+                }
+                d.module = module;
+            }
         }
 
         self.expect(";")?;
-        Ok(Stmt {
-            kind: StmtKind::Play(PlayDecl { module, alias, names }),
-            span: kw.span,
-        })
+        Ok(Stmt { kind: StmtKind::Play(d), span: kw.span })
+    }
+
+    /// Sumber import: URL (string) atau modul bawaan (identifier, boleh bertitik).
+    fn play_source(&mut self, d: &mut PlayDecl) -> PResult<()> {
+        let t = self.peek(0)?;
+        match t.tok {
+            Tok::Str(url) => {
+                self.bump()?;
+                d.url = Some(url);
+            }
+            _ => {
+                let (mut module, _) = self.ident()?;
+                while self.eat(".")? {
+                    let (part, _) = self.ident()?;
+                    module.push('.');
+                    module.push_str(&part);
+                }
+                d.module = module;
+            }
+        }
+        Ok(())
     }
 
     fn parse_alias(&mut self) -> PResult<Stmt> {

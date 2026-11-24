@@ -7,9 +7,10 @@
 //! Di luar cakupan (struct, pointer, array, fungsi dinamis, pemanggilan JS): error yang jelas.
 //! Fungsi yang tanda tangannya tidak skalar dilewati dan tidak dihasilkan.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::ast::*;
+use crate::ast_walk;
 use crate::codegen::keyword_alias;
 use crate::error::{Diag, Span};
 use crate::wasm_encode::{encode, uleb, ValTy, WasmFunc};
@@ -84,12 +85,57 @@ pub struct ScalarModule {
 /// Mengompilasi fungsi skalar yang bisa ke WASM. Fungsi yang gagal dibuang dari modul
 /// (dan fungsi yang memanggilnya ikut gagal), lalu diulang sampai stabil. Fungsi yang
 /// gagal tetap dihasilkan sebagai JavaScript oleh codegen, jadi tidak ada error di sini.
+/// Hanya fungsi skalar yang dipakai (langsung dari JS, atau lewat fungsi WASM lain).
+/// Fungsi yang tidak dipakai tidak dibuat. Kalau tidak ada yang dipakai, tidak ada WASM.
+pub fn emit_scalar_used(program: &Program) -> ScalarModule {
+    let scalar: HashMap<String, &FuncDecl> = program
+        .body
+        .iter()
+        .filter_map(|s| match &s.kind {
+            StmtKind::Func(f) if scalar_sig(f).is_some() => Some((f.name.clone(), f)),
+            _ => None,
+        })
+        .collect();
+
+    // Akar: nama yang dirujuk dari semua kode yang tidak masuk WASM.
+    let mut roots = Vec::new();
+    for s in &program.body {
+        if let StmtKind::Func(f) = &s.kind {
+            if scalar.contains_key(&f.name) {
+                continue;
+            }
+        }
+        ast_walk::stmt_refs(s, &mut roots);
+    }
+
+    // Penutupan transitif lewat badan fungsi WASM.
+    let mut used: HashSet<String> = HashSet::new();
+    let mut queue: Vec<String> = roots.into_iter().filter(|n| scalar.contains_key(n)).collect();
+    while let Some(n) = queue.pop() {
+        if !used.insert(n.clone()) {
+            continue;
+        }
+        let mut refs = Vec::new();
+        ast_walk::stmts_refs(&scalar[&n].body, &mut refs);
+        queue.extend(refs.into_iter().filter(|r| scalar.contains_key(r) && !used.contains(r)));
+    }
+
+    emit_scalar_with(program, Some(&used))
+}
+
+/// Semua fungsi skalar yang bisa dikompilasi.
 pub fn emit_scalar(program: &Program) -> ScalarModule {
+    emit_scalar_with(program, None)
+}
+
+fn emit_scalar_with(program: &Program, keep: Option<&HashSet<String>>) -> ScalarModule {
     let mut cand: Vec<(&FuncDecl, Vec<Num>, Option<Num>)> = Vec::new();
     for s in &program.body {
         if let StmtKind::Func(f) = &s.kind {
             if let Some((p, r)) = scalar_sig(f) {
-                cand.push((f, p, r));
+                if keep.map_or(true, |k| k.contains(&f.name)) {
+                    cand.push((f, p, r));
+                }
             }
         }
     }

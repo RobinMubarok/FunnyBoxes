@@ -4,11 +4,14 @@
 //! dan keluaran index.html serta style.css. WebAssembly (core.wasm) belum ada.
 
 pub mod ast;
+pub mod ast_walk;
 pub mod base64;
 pub mod codegen;
 pub mod error;
 pub mod lexer;
 pub mod output;
+pub mod shake;
+pub mod static_html;
 pub mod parser;
 pub mod wasm_emit;
 pub mod wasm_encode;

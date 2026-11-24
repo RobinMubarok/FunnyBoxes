@@ -200,6 +200,7 @@ const UI: &[(&str, Builtin)] = &[
     ("Scroll", Builtin::Ui("Scroll")),
     ("Dialog", Builtin::Ui("Dialog")),
     ("Menu", Builtin::Ui("Menu")),
+    ("Head", Builtin::Ui("Head")),
 ];
 
 const GRAPHICS: &[(&str, Builtin)] = &[
@@ -239,9 +240,22 @@ fn module_table(module: &str) -> Result<&'static [(&'static str, Builtin)], Stri
         "UI" => Ok(UI),
         "Graphics" | "Graphics.Browser" => Ok(GRAPHICS),
         "Input" => Ok(INPUT),
+        "Storage" => Err("modul 'Storage' tidak ada; pakai API JavaScript langsung: localStorage, sessionStorage".into()),
+        "Network" => Err("modul 'Network' tidak ada; pakai API JavaScript langsung: fetch".into()),
+        "Router" => Err("modul 'Router' tidak ada; pakai API JavaScript langsung: location, history".into()),
+        "Animation" => Err("modul 'Animation' tidak ada; pakai API JavaScript langsung: element.animate()".into()),
         other => Err(format!("modul '{}' belum didukung oleh backend tahap ini", other)),
     }
 }
+
+/// Identifier global JavaScript yang diteruskan apa adanya (tanpa prefiks `$`).
+const JS_GLOBALS: &[&str] = &[
+    "window", "document", "navigator", "location", "history", "localStorage", "sessionStorage",
+    "fetch", "console", "JSON", "setTimeout", "clearTimeout", "setInterval", "clearInterval",
+    "requestAnimationFrame", "cancelAnimationFrame", "queueMicrotask", "Promise", "Date",
+    "Number", "String", "Array", "Object", "Map", "Set", "URL", "Intl", "structuredClone",
+    "alert", "confirm", "prompt", "getComputedStyle", "matchMedia",
+];
 
 /// Mengubah teks menjadi literal string JavaScript.
 fn js_str(s: &str) -> String {
@@ -297,6 +311,8 @@ struct Gen {
     /// Program memakai library WASM (core.wasm).
     uses_core: bool,
     wasm_funcs: HashSet<String>,
+    /// Baris `import ... from "url";` (sintaks `play` dari URL).
+    imports: Vec<String>,
 }
 
 /// Hasil codegen: isi app.js dan apakah program membutuhkan core.wasm.
@@ -323,6 +339,7 @@ pub fn generate_full(program: &Program, opts: &CodegenOptions) -> Result<Generat
         errors: Vec::new(),
         uses_core: false,
         wasm_funcs: opts.wasm_funcs.iter().cloned().collect(),
+        imports: Vec::new(),
     };
     let body = g.expand(&program.body);
 
@@ -459,8 +476,14 @@ pub fn generate_full(program: &Program, opts: &CodegenOptions) -> Result<Generat
     let needs_core = if g.uses_core { "true" } else { "false" };
     let needs_app = if g.wasm_funcs.is_empty() { "false" } else { "true" };
     let wrapped = format!("__start({}, {}, () => {{\n{}}});\n", needs_core, needs_app, code);
+    // Import harus di tingkat atas modul, jadi ditaruh paling depan.
+    let imports = if g.imports.is_empty() {
+        String::new()
+    } else {
+        format!("{}\n", g.imports.join("\n"))
+    };
     Ok(Generated {
-        js: format!("{}\n{}", PRELUDE, wrapped),
+        js: format!("{}{}\n{}", imports, crate::shake::shake(PRELUDE, &wrapped), wrapped),
         uses_core: g.uses_core,
     })
 }
@@ -492,7 +515,57 @@ impl Gen {
 
     // ---------- Module, expansion, dan tipe ----------
 
+    /// `play ... from "url";` menjadi import JavaScript. Nama lokal diberi `$` seperti identifier lain.
+    fn add_import(&mut self, p: &PlayDecl, url: &str, span: Span) {
+        let src = js_str(url);
+        if let Some(local) = &p.default_name {
+            self.imports.push(format!("import ${} from {};", local, src));
+            self.declare(local, Sym::var(false, None, false), span);
+        }
+        if let Some(local) = &p.namespace {
+            self.imports.push(format!("import * as ${} from {};", local, src));
+            self.declare(local, Sym::var(false, None, false), span);
+        }
+        if !p.named.is_empty() {
+            let items: Vec<String> = p
+                .named
+                .iter()
+                .map(|(imp, local)| format!("{} as ${}", imp, local))
+                .collect();
+            self.imports.push(format!("import {{ {} }} from {};", items.join(", "), src));
+            for (_, local) in &p.named {
+                self.declare(local, Sym::var(false, None, false), span);
+            }
+        }
+    }
+
     fn use_play(&mut self, p: &PlayDecl, span: Span) {
+        if let Some(url) = &p.url {
+            self.add_import(p, url, span);
+            return;
+        }
+        // Impor bernama dari modul bawaan: `play { sqrt as akar } from Math;`
+        if !p.named.is_empty() {
+            let table = match module_table(&p.module) {
+                Ok(t) => t,
+                Err(msg) => {
+                    self.err(span, msg);
+                    return;
+                }
+            };
+            if matches!(p.module.as_str(), "Memory" | "Math" | "Graphics" | "Graphics.Browser") {
+                self.uses_core = true;
+            }
+            for (imp, local) in &p.named {
+                match table.iter().find(|(tn, _)| *tn == imp.as_str()) {
+                    Some((_, b)) => {
+                        self.builtins.insert(local.clone(), *b);
+                    }
+                    None => self.err(span, format!("'{}' tidak ada di modul '{}'", imp, p.module)),
+                }
+            }
+            return;
+        }
         if p.alias.is_some() {
             self.err(span, "'play ... as ...' belum didukung oleh backend tahap ini");
             return;
@@ -1099,7 +1172,11 @@ impl Gen {
                 if self.scopes.len() > 1 {
                     self.err(s.span, "extern hanya boleh di level atas file");
                 }
-                out.push_str(&format!("{}const ${} = globalThis[{}];\n", pad, ext.name, js_str(&ext.name)));
+                // Binding ditunda sampai pemanggilan: library dari <script> di <Head> dimuat asinkron.
+                out.push_str(&format!(
+                    "{}const ${} = (...__a) => globalThis[{}](...__a);\n",
+                    pad, ext.name, js_str(&ext.name)
+                ));
             }
             StmtKind::Struct(_) | StmtKind::Alias(_) | StmtKind::Play(_) => {
                 self.err(s.span, "deklarasi ini hanya boleh di level atas file");
@@ -1177,6 +1254,7 @@ impl Gen {
                 self.err(span, format!("'{}' hanya bisa dipakai sebagai komponen JSX atau pemanggilan", name));
                 "undefined".to_string()
             }
+            None if JS_GLOBALS.contains(&name) => name.to_string(),
             None => {
                 self.err(
                     span,

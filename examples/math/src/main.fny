@@ -1,0 +1,31 @@
+// Contoh Math. Fungsi bertipe murni seperti jumlahKuadrat dan faktorial masuk ke WASM,
+// karena hanya memakai aritmetika skalar. sqrt, clamp, dan random lewat core.wasm.
+play UI;
+play Math;
+
+box14 jumlahKuadrat(box14 a, box14 b) {
+    return a * a + b * b;
+}
+
+box14 faktorial(box14 n) {
+    box14 hasil = 1;
+    for (box14 i = 2; i <= n; i++) {
+        hasil *= i;
+    }
+    return hasil;
+}
+
+export default fun Here() {
+    box24 jarak = sqrt(jumlahKuadrat(3, 4));
+    box24 nilai = clamp(150, 0, 100);
+    box14 acak = randomInt(1, 6);
+    return (
+        <Container className="card">
+            <p>sqrt(3^2 + 4^2) = {jarak}</p>
+            <p>clamp(150, 0, 100) = {nilai}</p>
+            <p>5! = {faktorial(5)}</p>
+            <p>Dadu: {acak}</p>
+            <p>Lerp(0, 10, 0.25) = {lerp(0, 10, 0.25)}</p>
+        </Container>
+    );
+}

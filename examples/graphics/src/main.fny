@@ -1,0 +1,32 @@
+// Contoh Graphics 2D: primitif langsung dan gaya vertex (gfxBegin/gfxVertex/gfxEnd).
+// Butuh core.wasm: build dengan --core FILE_CORE_WASM.
+play UI;
+play Graphics;
+
+fun Kanvas() {
+    return (
+        <GraphicsCanvas width={320} height={180}>
+            {() => {
+                gfxClear(0x20242C);
+                gfxRect(20, 20, 120, 80, 0x7CC4FF);
+                gfxCircle(230, 90, 40, 0xFF8844);
+                gfxLine(0, 0, 319, 179, 0xFFFFFF);
+                gfxBegin(GFX_TRIANGLES);
+                gfxColor(0x00FF88);
+                gfxVertex(20, 170);
+                gfxVertex(120, 120);
+                gfxVertex(60, 175);
+                gfxEnd();
+            }}
+        </GraphicsCanvas>
+    );
+}
+
+export default fun Here() {
+    return (
+        <Container className="card">
+            <h2>Contoh Graphics</h2>
+            <Kanvas />
+        </Container>
+    );
+}

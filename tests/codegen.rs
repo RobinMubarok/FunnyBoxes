@@ -127,7 +127,7 @@ fn error_unknown_name_is_reported() {
 
 #[test]
 fn error_unsupported_module_is_reported() {
-    let msgs = err("play Animation; export default fun Here() { return <p>x</p>; }");
+    let msgs = err("play Browser; export default fun Here() { return <p>x</p>; }");
     assert!(msgs.iter().any(|m| m.contains("belum didukung")), "{:?}", msgs);
 }
 
@@ -404,7 +404,7 @@ fn extern_binds_host_global() {
             return <p>x</p>;
         }
     "#);
-    assert!(js.contains("const $log = globalThis[\"log\"];"), "{}", js);
+    assert!(js.contains("const $log = (...__a) => globalThis[\"log\"](...__a);"), "{}", js);
 }
 
 #[test]
@@ -456,4 +456,60 @@ fn goto_cannot_cross_function_boundary() {
         }
     "#);
     assert!(msgs.iter().any(|m| m.contains("hanya boleh ke label yang melingkupinya")), "{:?}", msgs);
+}
+
+#[test]
+fn js_globals_pass_through_without_wrappers() {
+    let js = ok(r#"
+        export default fun Here() {
+            fetch("/api/products");
+            localStorage.setItem("cache", "x");
+            history.pushState({}, "", "/kontak");
+            return <p>x</p>;
+        }
+    "#);
+    assert!(js.contains("fetch(\"/api/products\")"), "{}", js);
+    assert!(js.contains("localStorage.setItem(\"cache\""), "{}", js);
+    assert!(js.contains("history.pushState("), "{}", js);
+}
+
+#[test]
+fn play_from_url_becomes_js_import() {
+    let js = ok(r#"
+        play Chart from "https://cdn.example/chart.js";
+        play { registerables, Chart as C } from "https://cdn.example/chart.js";
+        play * as Lib from "https://cdn.example/lib.js";
+        export default fun Here() { return <p>{Chart}{C}{Lib}</p>; }
+    "#);
+    assert!(js.starts_with("import $Chart from \"https://cdn.example/chart.js\";"), "{}", js);
+    assert!(js.contains("import { registerables as $registerables, Chart as $C } from \"https://cdn.example/chart.js\";"), "{}", js);
+    assert!(js.contains("import * as $Lib from \"https://cdn.example/lib.js\";"), "{}", js);
+}
+
+#[test]
+fn named_builtin_import_with_alias() {
+    let js = ok(r#"
+        play { sqrt as akar } from Math;
+        export default fun Here() { return <p>{akar(16)}</p>; }
+    "#);
+    assert!(js.contains("__core.fb_sqrt(16)"), "{}", js);
+}
+
+#[test]
+fn removed_wrapper_modules_are_clear_errors() {
+    let msgs = err("play Router; export default fun Here() { return <p>x</p>; }");
+    assert!(msgs.iter().any(|m| m.contains("API JavaScript langsung")), "{:?}", msgs);
+}
+
+#[test]
+fn unused_runtime_parts_are_shaken_out() {
+    let js = ok(r#"
+        export default fun Here() {
+            state n = 0;
+            return <p>{n}</p>;
+        }
+    "#);
+    assert!(js.contains("function __h("), "{}", js);
+    assert!(!js.contains("function __gfxRun"), "{}", js);
+    assert!(!js.contains("function __gfxEnd"), "{}", js);
 }
